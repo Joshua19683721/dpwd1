@@ -3,40 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>部署示例網站</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>英文學習閃卡</title>
+    <style>
+        body {
+            font-family: "SimHei", "Microsoft JhengHei", sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .card {
+            width: 90%;
+            max-width: 600px;
+            height: 300px;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 1.5em;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            position: relative;
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 90%;
+            backface-visibility: hidden;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .counter {
+            font-size: 1.2em;
+            color: #666;
+        }
+        .loading {
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>歡迎來到部署示例網站</h1>
-    </header>
-    
-    <main>
-        <section class="content">
-            <h2>關於本網站</h2>
-            <p>這是一個用於展示部署流程的示例網站，包含了完整的前端文件結構。</p>
-            
-            <div class="features">
-                <div class="feature">
-                    <h3>響應式設計</h3>
-                    <p>支援各種設備的螢幕尺寸</p>
-                </div>
-                <div class="feature">
-                    <h3>現代化風格</h3>
-                    <p>採用最新的設計趨勢</p>
-                </div>
-                <div class="feature">
-                    <h3>快速載入</h3>
-                    <p>優化的程式碼結構</p>
-                </div>
-            </div>
-        </section>
-    </main>
-    
-    <footer>
-        <p>&copy; 2025 部署示例網站. 版權所有.</p>
-    </footer>
-    
-    <script src="js/main.js"></script>
+    <h1>英文學習閃卡</h1>
+
+    <div class="card" id="flashcard">
+        <div class="card-front" id="cardFront"></div>
+        <div class="card-back" id="cardBack"></div>
+    </div>
+
+    <div class="controls">
+        <button onclick="playPronunciation()">播放發音</button>
+        <button onclick="flipCard()">查看英文</button>
+        <button onclick="prevCard()">上一張</button>
+        <button onclick="nextCard()">下一張</button>
+    </div>
+
+    <div class="counter" id="counter"></div>
+    <div class="loading" id="loading"></div>
+
+    <script>
+        // 從後端獲取卡片數據（Flask模板語法）
+        const cards = {{ cards|tojson }};
+
+        // 初始化變量
+        let currentIndex = 0;
+        let isFlipped = false;
+        const card = document.getElementById('flashcard');
+        const cardFront = document.getElementById('cardFront');
+        const cardBack = document.getElementById('cardBack');
+        const counter = document.getElementById('counter');
+        const loading = document.getElementById('loading');
+
+        // 顯示當前卡片
+        function showCard() {
+            const currentCard = cards[currentIndex];
+            cardFront.textContent = currentCard.chinese_word;
+            cardBack.innerHTML = `
+                英文: ${currentCard.english}<br>
+                音標: ${currentCard.phonetic}<br>
+                中文: ${currentCard.chinese_word}<br>
+                解釋: ${currentCard.chinese_sentence}
+            `;
+            counter.textContent = `卡片 ${currentIndex + 1}/${cards.length}`;
+        }
+
+        // 翻轉卡片
+        function flipCard() {
+            isFlipped = !isFlipped;
+            card.classList.toggle('flipped', isFlipped);
+            document.querySelector('button:nth-child(2)').textContent = isFlipped ? "返回中文" : "查看英文";
+        }
+
+        // 上一張卡片
+        function prevCard() {
+            currentIndex = (currentIndex - 1 + cards.length) % cards.length;
+            isFlipped = false;
+            card.classList.remove('flipped');
+            document.querySelector('button:nth-child(2)').textContent = "查看英文";
+            showCard();
+        }
+
+        // 下一張卡片
+        function nextCard() {
+            currentIndex = (currentIndex + 1) % cards.length;
+            isFlipped = false;
+            card.classList.remove('flipped');
+            document.querySelector('button:nth-child(2)').textContent = "查看英文";
+            showCard();
+        }
+
+        // 調用後端gTTS接口播放語音
+        function playPronunciation() {
+            const text = cards[currentIndex].english;
+            loading.textContent = "正在生成語音...";
+
+            fetch('/generate-audio', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("生成語音失敗");
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                loading.textContent = "";
+                const audioUrl = URL.createObjectURL(blob);
+                const audio = new Audio(audioUrl);
+                audio.play();
+
+                audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                };
+            })
+            .catch(error => {
+                loading.textContent = "";
+                alert("播放失敗: " + error.message);
+            });
+        }
+
+        // 初始化顯示第一張卡片
+        showCard();
+    </script>
 </body>
 </html>
